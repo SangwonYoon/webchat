@@ -7,4 +7,4 @@ COPY requirements.txt /app
 
 RUN python -m pip install --upgrade pip; pip install -r /app/requirements.txt
 
-ENTRYPOINT ["python", "/app/server.py"]
+ENTRYPOINT ["python", "/app/main.py"]
