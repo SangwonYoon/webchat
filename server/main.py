@@ -7,6 +7,7 @@ import asyncio
 import logging
 
 logging.basicConfig(
+    filename="server.log",
     format="%(asctime)s %(levelname)s:%(message)s", 
     level=logging.INFO
 )
@@ -26,7 +27,7 @@ async def websocket_handler(request):
 
     await info_id(ws, id)
 
-    r = redis.asyncio.Redis(host="localhost", port=6379, db=0)
+    r = redis.asyncio.Redis(host="redis", port=6379, db=0)
     subscriber = r.pubsub()
     await subscriber.subscribe(CHANNEL_NAME)
 
