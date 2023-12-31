@@ -1,48 +1,40 @@
-from aiohttp import web
-import aiohttp
-import time
-import redis.asyncio
-import json
 import asyncio
+import json
 import logging
+import os
+import socket
+import time
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import cpu_count
 
-logging.basicConfig(
-    filename="server.log",
-    format="%(asctime)s %(levelname)s:%(message)s", 
-    level=logging.INFO
-)
+import aiohttp
+import redis.asyncio
+from aiohttp import web
 
 routes = web.RouteTableDef()
 
 STOPWORD = "QUIT"
 CHANNEL_NAME = "chat-channel"
+CPU_COUNT = cpu_count()
 
-@routes.get("/ws")
-async def websocket_handler(request):
+logging.basicConfig(
+    filename=f"server.log",
+    format="%(asctime)s Process %(process)d:%(message)s", 
+    level=logging.INFO
+)
 
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
-
-    id = int((time.time() % 1703000000) * 10000000)
-
-    await info_id(ws, id)
-
-    r = redis.asyncio.Redis(host="redis", port=6379, db=0)
-    subscriber = r.pubsub()
-    await subscriber.subscribe(CHANNEL_NAME)
-
-    write_task = asyncio.create_task(write_message(ws, id, r))
-    read_task = asyncio.create_task(read_message(ws, subscriber))
-
-    await write_task
-    await read_task
-
-    logging.info('websocket connection closed')
+def make_socket(host, port, reuseport):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if reuseport:
+        SO_REUSEPORT = 15
+        sock.setsockopt(socket.SOL_SOCKET, SO_REUSEPORT, 1)
+    sock.bind((host, port))
+    return sock
 
 async def info_id(ws, id):
     info = {"message_type": "info", "content": id}
     await ws.send_json(info)
-    logging.info(f"Web Socket Connection Established!, id: {id}")
+    logging.info(f"websocket connection established!, id: {id}")
 
 async def write_message(ws, id, r):
     async for msg in ws:
@@ -67,7 +59,63 @@ async def read_message(ws, subscriber):
             except ConnectionResetError as e:
                 pass
 
-if __name__ == "__main__":
+@routes.get("/ws")
+async def websocket_handler(request):
+
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    id = int((time.time() % 1703000000) * 10000000)
+
+    await info_id(ws, id)
+
+    REDIS_HOST_NAME = "redis"
+    r = redis.asyncio.Redis(host=REDIS_HOST_NAME, port=6379, db=0)
+    subscriber = r.pubsub()
+    await subscriber.subscribe(CHANNEL_NAME)
+
+    write_task = asyncio.create_task(write_message(ws, id, r))
+    read_task = asyncio.create_task(read_message(ws, subscriber))
+
+    await write_task
+    await read_task
+
+    logging.info("websocket connection closed")
+
+async def start_server():
+    host = "0.0.0.0"
+    port = 8080
+    reuseport = True
+
     app = web.Application()
     app.add_routes(routes)
-    web.run_app(app)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    sock = make_socket(host, port, reuseport)
+    server = web.SockSite(runner, sock)
+    await server.start()
+    logging.info(f"server started")
+    return server, app, runner
+
+async def finalize(server, app, runner):
+    sock = server.sockets[0]
+    app.loop.remove_reader(sock.fileno())
+    sock.close()
+
+    await runner.cleanup()
+    server.close()
+    await server.wait_closed()
+    await app.finish()
+
+def main():
+    loop = asyncio.get_event_loop()
+    server, app, runner = loop.run_until_complete(start_server())
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        loop.run_until_complete((finalize(server, app, runner)))
+
+if __name__ == "__main__":
+    with ProcessPoolExecutor() as executor:
+        for _ in range(0, CPU_COUNT):
+            executor.submit(main)
