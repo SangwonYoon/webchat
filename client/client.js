@@ -43,6 +43,13 @@ socket.addEventListener("message", (event) => {
   console.log("Message from server", data);
   if (data.message_type == "info") {
     chat_id = data.content;
+  } else if (data.message_type == "enterance") {
+    var chatMessages = document.getElementById("chat-messages");
+    var newMessage = document.createElement("div");
+    newMessage.setAttribute("class", "enterance");
+    newMessage.innerText = data.content + "님이 입장하셨습니다.";
+    chatMessages.appendChild(newMessage);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   } else if (data.content.sender == chat_id) {
     var chatMessages = document.getElementById("chat-messages");
     var newMessage = document.createElement("div");

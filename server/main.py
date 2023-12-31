@@ -31,14 +31,20 @@ def make_socket(host, port, reuseport):
     sock.bind((host, port))
     return sock
 
+async def get_nickname(ws):
+    msg = await ws.receive()
+    return msg.data
+
 async def info_id(ws, id):
     info = {"message_type": "info", "content": id}
     await ws.send_json(info)
     logging.info(f"websocket connection established!, id: {id}")
 
-async def get_nickname(ws):
-    msg = await ws.receive()
-    return msg.data
+async def notify_enterance(nickname, r):
+    info = {"message_type": "enterance", "content": nickname}
+    await r.publish(CHANNEL_NAME, json.dumps(info))
+
+    logging.info(f"publish enterance message from {nickname}")
 
 async def write_message(ws, id, nickname, r):
     async for msg in ws:
@@ -80,6 +86,8 @@ async def websocket_handler(request):
     r = redis.asyncio.Redis(host=REDIS_HOST_NAME, port=6379, db=0)
     subscriber = r.pubsub()
     await subscriber.subscribe(CHANNEL_NAME)
+    
+    await notify_enterance(nickname, r)
 
     write_task = asyncio.create_task(write_message(ws, id, nickname, r))
     read_task = asyncio.create_task(read_message(ws, subscriber))
