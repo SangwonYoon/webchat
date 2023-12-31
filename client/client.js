@@ -4,6 +4,14 @@
 const socket = new WebSocket("ws://0.0.0.0:8080/ws");
 var chat_id;
 
+function getNickname() {
+  let nickname = prompt("Please enter your nickname:", "Anonymous");
+  if (nickname == null || nickname == "") {
+    nickname = getNickname();
+  }
+  return nickname;
+}
+
 function sendMessage() {
   var messageInput = document.getElementById("message-input");
   var message = messageInput.value;
@@ -11,7 +19,6 @@ function sendMessage() {
   if (message.trim() !== "") {
     socket.send(message);
 
-    // 메시지를 보낸 후에 입력 필드를 비웁니다.
     messageInput.value = "";
   }
 }
@@ -24,25 +31,36 @@ input.addEventListener("keyup", function (event) {
   }
 });
 
+socket.addEventListener("open", (event) => {
+  nickname = getNickname();
+  console.log("nickname: " + nickname);
+  socket.send(nickname);
+});
+
 // 데이터를 수신 받았을 때
 socket.addEventListener("message", (event) => {
   data = JSON.parse(event.data);
   console.log("Message from server", data);
   if (data.message_type == "info") {
-    var idInfo = document.getElementById("id-info");
     chat_id = data.content;
-    idInfo.innerText = "아이디: " + chat_id;
   } else if (data.content.sender == chat_id) {
     var chatMessages = document.getElementById("chat-messages");
     var newMessage = document.createElement("div");
-    newMessage.setAttribute("id", "my-message");
-    newMessage.innerText = "나: " + data.content.message;
+    newMessage.setAttribute("class", "my-message");
+    newMessage.innerText = data.content.message;
     chatMessages.appendChild(newMessage);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   } else {
     var chatMessages = document.getElementById("chat-messages");
     var newMessage = document.createElement("div");
-    newMessage.setAttribute("id", "not-my-message");
-    newMessage.innerText = data.content.sender + ": " + data.content.message;
+    newMessage.setAttribute("class", "not-my-message");
+    newMessage.innerText =
+      data.content.sender_nickname + ": " + data.content.message;
     chatMessages.appendChild(newMessage);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   }
+});
+
+socket.addEventListener("close", (event) => {
+  console.log("socket closed!");
 });

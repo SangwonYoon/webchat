@@ -1,12 +1,17 @@
 body {
+  height: 100%;
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+#title {
+  text-align: center;
+}
+
 #chat-container {
-  max-width: 400px;
+  max-width: 80%;
   margin: 20px auto;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -15,7 +20,7 @@ body {
 
 #chat-messages {
   padding: 10px;
-  max-height: 300px;
+  height: 500px;
   overflow-y: auto;
 }
 
@@ -38,10 +43,12 @@ body {
   text-align: center;
 }
 
-#my-message {
+.my-message {
+  text-align: right;
   color: blue;
 }
 
-#not-my-message {
+.not-my-message {
+  text-align: left;
   color: green;
 }
