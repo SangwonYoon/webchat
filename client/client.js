@@ -1,8 +1,16 @@
-// function isOpen(ws) { return ws.readyState === ws.OPEN }
-
-// 웹소켓 생성
-const socket = new WebSocket("ws://0.0.0.0:8080/ws");
+const serverEndpoint = "ws://0.0.0.0:8080/ws";
+const socket = new WebSocket(serverEndpoint);
 var chat_id;
+
+function getNickname() {
+  const promptMessage = "Please enter your nickname:";
+  const defaultNickname = "Anonymous";
+  let nickname = prompt(promptMessage, defaultNickname);
+  if (nickname == null || nickname == "") {
+    nickname = getNickname();
+  }
+  return nickname;
+}
 
 function sendMessage() {
   var messageInput = document.getElementById("message-input");
@@ -11,9 +19,17 @@ function sendMessage() {
   if (message.trim() !== "") {
     socket.send(message);
 
-    // 메시지를 보낸 후에 입력 필드를 비웁니다.
     messageInput.value = "";
   }
+}
+
+function printMessage(className, text) {
+  var chatMessages = document.getElementById("chat-messages");
+  var newMessage = document.createElement("div");
+  newMessage.setAttribute("class", className);
+  newMessage.innerText = text;
+  chatMessages.appendChild(newMessage);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 input = document.getElementById("message-input");
@@ -24,25 +40,32 @@ input.addEventListener("keyup", function (event) {
   }
 });
 
+socket.addEventListener("open", (event) => {
+  nickname = getNickname();
+  console.log("nickname: " + nickname);
+  socket.send(nickname);
+});
+
 // 데이터를 수신 받았을 때
 socket.addEventListener("message", (event) => {
   data = JSON.parse(event.data);
   console.log("Message from server", data);
   if (data.message_type == "info") {
-    var idInfo = document.getElementById("id-info");
     chat_id = data.content;
-    idInfo.innerText = "아이디: " + chat_id;
+  } else if (data.message_type == "enterance") {
+    printMessage("enterance", data.content + "님이 입장하셨습니다.");
+  } else if (data.message_type == "exit") {
+    printMessage("exit", data.content + "님이 퇴장하셨습니다.");
   } else if (data.content.sender == chat_id) {
-    var chatMessages = document.getElementById("chat-messages");
-    var newMessage = document.createElement("div");
-    newMessage.setAttribute("id", "my-message");
-    newMessage.innerText = "나: " + data.content.message;
-    chatMessages.appendChild(newMessage);
+    printMessage("my-message", data.content.message);
   } else {
-    var chatMessages = document.getElementById("chat-messages");
-    var newMessage = document.createElement("div");
-    newMessage.setAttribute("id", "not-my-message");
-    newMessage.innerText = data.content.sender + ": " + data.content.message;
-    chatMessages.appendChild(newMessage);
+    printMessage(
+      "not-my-message",
+      data.content.sender_nickname + ": " + data.content.message
+    );
   }
+});
+
+socket.addEventListener("close", (event) => {
+  console.log("socket closed!");
 });

@@ -10,10 +10,10 @@ from multiprocessing import cpu_count
 import aiohttp
 import redis.asyncio
 from aiohttp import web
+from message import Message
 
 routes = web.RouteTableDef()
 
-STOPWORD = "QUIT"
 CHANNEL_NAME = "chat-channel"
 CPU_COUNT = cpu_count()
 
@@ -31,23 +31,36 @@ def make_socket(host, port, reuseport):
     sock.bind((host, port))
     return sock
 
+async def get_nickname(ws):
+    msg = await ws.receive()
+    return msg.data
+
 async def info_id(ws, id):
-    info = {"message_type": "info", "content": id}
+    info = Message(message_type="info", content=id).get_json()
     await ws.send_json(info)
     logging.info(f"websocket connection established!, id: {id}")
 
-async def write_message(ws, id, r):
+async def notify_enterance(nickname, r):
+    info = Message(message_type="enterance", content=nickname).get_json()
+    await r.publish(CHANNEL_NAME, json.dumps(info))
+
+    logging.info(f"publish enterance message from {nickname}")
+
+async def write_message(ws, id, nickname, r):
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
-            if msg.data == STOPWORD:
-                break
-
-            chat = {"message_type": "chat", "content": {"sender": id, "message": msg.data}}
+            content = {"sender": id, "sender_nickname": nickname, "message": msg.data}
+            chat = Message(message_type="chat", content=content).get_json()
             await r.publish(CHANNEL_NAME, json.dumps(chat))
 
             logging.info(f"publish message from {id} -> {msg.data}")
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logging.info(f"ws connection closed with exception {ws.exception()}")
+
+    info = Message(message_type="exit", content=nickname).get_json()
+    await r.publish(CHANNEL_NAME, json.dumps(info))
+
+    logging.info(f"publish exit message from {nickname}")
 
 async def read_message(ws, subscriber):
     while not ws.closed:
@@ -67,6 +80,9 @@ async def websocket_handler(request):
 
     id = int((time.time() % 1703000000) * 10000000)
 
+    nickname = await get_nickname(ws)
+    logging.info(f"{nickname=}")
+
     await info_id(ws, id)
 
     REDIS_HOST_NAME = "redis"
@@ -74,7 +90,9 @@ async def websocket_handler(request):
     subscriber = r.pubsub()
     await subscriber.subscribe(CHANNEL_NAME)
 
-    write_task = asyncio.create_task(write_message(ws, id, r))
+    await notify_enterance(nickname, r)
+
+    write_task = asyncio.create_task(write_message(ws, id, nickname, r))
     read_task = asyncio.create_task(read_message(ws, subscriber))
 
     await write_task
