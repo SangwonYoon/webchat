@@ -59,6 +59,11 @@ async def write_message(ws, id, nickname, r):
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logging.info(f"ws connection closed with exception {ws.exception()}")
 
+    info = {"message_type": "exit", "content": nickname}
+    await r.publish(CHANNEL_NAME, json.dumps(info))
+
+    logging.info(f"publish exit message from {nickname}")
+
 async def read_message(ws, subscriber):
     while not ws.closed:
         result = await subscriber.get_message(ignore_subscribe_messages=True, timeout=None)
@@ -86,7 +91,7 @@ async def websocket_handler(request):
     r = redis.asyncio.Redis(host=REDIS_HOST_NAME, port=6379, db=0)
     subscriber = r.pubsub()
     await subscriber.subscribe(CHANNEL_NAME)
-    
+
     await notify_enterance(nickname, r)
 
     write_task = asyncio.create_task(write_message(ws, id, nickname, r))

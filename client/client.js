@@ -1,11 +1,11 @@
-// function isOpen(ws) { return ws.readyState === ws.OPEN }
-
-// 웹소켓 생성
-const socket = new WebSocket("ws://0.0.0.0:8080/ws");
+const serverEndpoint = "ws://0.0.0.0:8080/ws";
+const socket = new WebSocket(serverEndpoint);
 var chat_id;
 
 function getNickname() {
-  let nickname = prompt("Please enter your nickname:", "Anonymous");
+  const promptMessage = "Please enter your nickname:";
+  const defaultNickname = "Anonymous";
+  let nickname = prompt(promptMessage, defaultNickname);
   if (nickname == null || nickname == "") {
     nickname = getNickname();
   }
@@ -21,6 +21,15 @@ function sendMessage() {
 
     messageInput.value = "";
   }
+}
+
+function printMessage(className, text) {
+  var chatMessages = document.getElementById("chat-messages");
+  var newMessage = document.createElement("div");
+  newMessage.setAttribute("class", className);
+  newMessage.innerText = text;
+  chatMessages.appendChild(newMessage);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 input = document.getElementById("message-input");
@@ -44,27 +53,16 @@ socket.addEventListener("message", (event) => {
   if (data.message_type == "info") {
     chat_id = data.content;
   } else if (data.message_type == "enterance") {
-    var chatMessages = document.getElementById("chat-messages");
-    var newMessage = document.createElement("div");
-    newMessage.setAttribute("class", "enterance");
-    newMessage.innerText = data.content + "님이 입장하셨습니다.";
-    chatMessages.appendChild(newMessage);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    printMessage("enterance", data.content + "님이 입장하셨습니다.");
+  } else if (data.message_type == "exit") {
+    printMessage("exit", data.content + "님이 퇴장하셨습니다.");
   } else if (data.content.sender == chat_id) {
-    var chatMessages = document.getElementById("chat-messages");
-    var newMessage = document.createElement("div");
-    newMessage.setAttribute("class", "my-message");
-    newMessage.innerText = data.content.message;
-    chatMessages.appendChild(newMessage);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    printMessage("my-message", data.content.message);
   } else {
-    var chatMessages = document.getElementById("chat-messages");
-    var newMessage = document.createElement("div");
-    newMessage.setAttribute("class", "not-my-message");
-    newMessage.innerText =
-      data.content.sender_nickname + ": " + data.content.message;
-    chatMessages.appendChild(newMessage);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    printMessage(
+      "not-my-message",
+      data.content.sender_nickname + ": " + data.content.message
+    );
   }
 });
 
